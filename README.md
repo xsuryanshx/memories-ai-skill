@@ -1,27 +1,25 @@
-# Memories.ai Skill for OpenClaw
+# Memories.ai Skill for Claude Code
 
 Video understanding and media processing using the memories.ai API.
 
 ## Features
 
 - File upload
-- Video understanding with Gemini/Nova models
+- Video understanding with Qwen VL models
 - Image captioning
-- YouTube/TikTok scraping
-- Transcripts
-- Embeddings
-- And more...
+- YouTube transcript extraction
+- Text/image/video embeddings
 
 ## API Status
 
 | Endpoint | Status | Notes |
 |----------|--------|-------|
-| `/upload` | ✅ Working | File upload confirmed |
-| Chat/Video Understanding | ⚠️ Issues | API backend errors |
-| YouTube | ⚠️ Issues | Network errors |
-| ILM (GPT) | ⚠️ Issues | Network errors |
-
-**Note:** The API key authentication works. Some endpoints may require additional configuration or permissions.
+| `/upload` | ✅ Working | Multipart file upload |
+| `/vu/chat/completions` | ✅ Working | Use `qwen:qwen3-vl-plus` model |
+| `/youtube/video/transcript` | ✅ Working | Requires channel parameter |
+| `/embeddings/text` | ✅ Working | Use `input` array |
+| `/embeddings/video` | ✅ Working | Requires video asset_id |
+| `/embeddings/image` | ✅ Working | File or URL |
 
 ## Installation
 
@@ -43,46 +41,94 @@ Get your API key at: https://memories.ai/api-key
 ## Quick Test
 
 ```bash
-# Run working tests
-python test_working.py
+# Text chat
+python3 scripts/memories_client.py chat-text "Hello"
 
-# Run all tests
-python test_full.py
+# Video chat
+python3 scripts/memories_client.py chat --video "URL" --prompt "What's in this?"
+
+# YouTube transcript
+python3 scripts/memories_client.py youtube-transcript "URL" --channel "channel_name"
 ```
 
 ## Usage
 
-### Upload a File
-
-```python
-import requests
-
-API_KEY = "your-key"
-url = "https://mavi-backend.memories.ai/serve/api/v2/upload"
-files = {"file": ("myfile.txt", b"content", "text/plain")}
-
-response = requests.post(url, headers={"Authorization": API_KEY}, files=files)
-print(response.json())
-```
-
 ### Python Client
 
-See `scripts/memories_client.py` for a full Python client.
+```python
+from scripts.memories_client import MemoriesAIClient
+
+client = MemoriesAIClient(api_key="your-key")
+
+# Text chat
+result = client.chat_text("Hello!")
+print(result["choices"][0]["text"])
+
+# Video chat
+result = client.chat_with_video(
+    video_url="https://example.com/video.mp4",
+    prompt="What's in this?"
+)
+
+# Image chat
+result = client.chat_with_image(
+    image_url="https://example.com/image.jpg",
+    prompt="Describe this"
+)
+
+# File upload
+result = client.upload_file("video.mp4")
+asset_id = result["data"]["asset_id"]
+
+# YouTube transcript
+result = client.youtube_transcript(
+    video_url="https://www.youtube.com/watch?v=...",
+    channel="channel_name"
+)
+
+# Text embeddings
+result = client.text_embedding(texts=["text1", "text2"])
+
+# Video embeddings
+result = client.video_embedding(asset_id="re_xxx")
+
+# Image embeddings
+result = client.image_embedding(image_url="https://...")
+```
+
+### CLI Commands
+
+```bash
+# Text chat
+python3 scripts/memories_client.py chat-text "Hello"
+
+# Video chat
+python3 scripts/memories_client.py chat --video "URL" --prompt "What's in this?"
+
+# Image chat
+python3 scripts/memories_client.py chat --image "URL" --prompt "Describe this"
+
+# File upload
+python3 scripts/memories_client.py upload /path/to/file.mp4
+
+# YouTube transcript
+python3 scripts/memories_client.py youtube-transcript "URL" --channel "channel_name"
+
+# Text embeddings
+python3 scripts/memories_client.py embed-text "text1" "text2"
+
+# Video embeddings
+python3 scripts/memories_client.py embed-video "re_asset_id"
+
+# Image embeddings
+python3 scripts/memories_client.py embed-image --url "URL"
+```
 
 ## Files
 
 - `SKILL.md` - Skill documentation
 - `scripts/memories_client.py` - Python client
-- `test_working.py` - Working test suite
-- `test_full.py` - Full test suite
 - `TEST_RESULTS.md` - Test results log
-
-## Troubleshooting
-
-If endpoints return errors:
-1. Verify your API key is valid
-2. Check network connectivity
-3. Contact memories.ai support
 
 ## License
 
@@ -90,4 +136,4 @@ MIT
 
 ## Author
 
-Built for OpenClaw by @xsuryanshx
+Built for Claude Code by @xsuryanshx
