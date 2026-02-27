@@ -12,7 +12,9 @@ Commands:
     chat-text       Text-only chat
     caption-video   Generate video caption
     caption-image   Generate image caption
-    upload          Upload file
+    upload          Upload local file
+    upload-url      Upload video from streaming URL
+    upload-platform Upload video from platform (YouTube, TikTok, Instagram)
     youtube-transcript Get YouTube transcript
     embed-video     Generate video embedding
     embed-image     Generate image embedding
@@ -26,11 +28,22 @@ import argparse
 import requests
 from typing import Optional, List, Dict
 
+# Load .env file if present
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+if os.path.exists(env_path):
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key, value)
+
 
 class MemoriesAIClient:
     """Client for memories.ai API."""
 
     BASE_URL = "https://mavi-backend.memories.ai/serve/api/v2"
+    API_URL = "https://api.memories.ai/serve/api/v1"
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("MEMORIES_AI_API_KEY")
@@ -54,6 +67,42 @@ class MemoriesAIClient:
                 headers=self.headersMultipart,
                 files={"file": f}
             )
+        resp.raise_for_status()
+        return resp.json()
+
+    def upload_from_url(self, url: str, **kwargs) -> dict:
+        """Upload video from a streaming URL (direct video link)."""
+        payload = {"url": url}
+        payload.update(kwargs)
+        resp = requests.post(
+            f"{self.API_URL}/upload_url",
+            headers=self.headers,
+            json=payload
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def upload_from_platform(self, video_urls: List[str], quality: int = 720, **kwargs) -> dict:
+        """Upload video from platform (YouTube, TikTok, Instagram)."""
+        payload = {
+            "video_urls": video_urls,
+            "quality": quality
+        }
+        payload.update(kwargs)
+        resp = requests.post(
+            f"{self.API_URL}/scraper_url",
+            headers=self.headers,
+            json=payload
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_task_status(self, task_id: str) -> dict:
+        """Check status of an async task (e.g., platform upload)."""
+        resp = requests.get(
+            f"{self.API_URL}/task/{task_id}",
+            headers=self.headers
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -229,8 +278,17 @@ def main():
     cap_i_parser.add_argument("--prompt", default="Describe this image", help="Prompt")
 
     # Upload
-    up_parser = subparsers.add_parser("upload", help="Upload file")
+    up_parser = subparsers.add_parser("upload", help="Upload local file")
     up_parser.add_argument("file", help="File path")
+
+    up_url_parser = subparsers.add_parser("upload-url", help="Upload video from streaming URL")
+    up_url_parser.add_argument("url", help="Direct video URL")
+    up_url_parser.add_argument("--datetime-taken", help="Capture time (YYYY-MM-DD HH:MM:SS)")
+    up_url_parser.add_argument("--tags", help="Comma-separated tags")
+
+    up_platform_parser = subparsers.add_parser("upload-platform", help="Upload from platform (YouTube, TikTok, Instagram)")
+    up_platform_parser.add_argument("urls", nargs="+", help="Video URLs")
+    up_platform_parser.add_argument("--quality", type=int, default=720, help="Video quality (720 or 1080)")
 
     # YouTube
     yt_trans = subparsers.add_parser("youtube-transcript", help="YouTube transcript")
@@ -285,6 +343,19 @@ def main():
 
         elif args.command == "upload":
             result = client.upload_file(args.file)
+            print(json.dumps(result, indent=2))
+
+        elif args.command == "upload-url":
+            kwargs = {}
+            if args.datetime_taken:
+                kwargs["datetime_taken"] = args.datetime_taken
+            if args.tags:
+                kwargs["tags"] = args.tags.split(",")
+            result = client.upload_from_url(args.url, **kwargs)
+            print(json.dumps(result, indent=2))
+
+        elif args.command == "upload-platform":
+            result = client.upload_from_platform(args.urls, args.quality)
             print(json.dumps(result, indent=2))
 
         elif args.command == "youtube-transcript":
